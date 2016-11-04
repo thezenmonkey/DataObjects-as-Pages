@@ -1,5 +1,5 @@
 {
-	"name": "arambalakjian/dataobjectaspage",
+	"name": "thezenmonkey/dataobjectaspage",
 	"replace": {"silverstripe/dataobjectaspage": "*"},
 	"description": "Manage DataObjects through model admin but display them as pages on the site",
 	"type": "silverstripe-module",
