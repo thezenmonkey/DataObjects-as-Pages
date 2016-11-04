@@ -1,6 +1,6 @@
 <div class="typography">
 	
-	<% if Children %>
+	<% if $Children %>
 		<% include SideBar %>
 		<div id="Content">
 	<% end_if %>
@@ -9,13 +9,13 @@
 			   	<p>$Breadcrumbs</p>
 			</div>
 			
-			<% control Item %>
+			<% loop $Item %>
 				<h2>$Title</h2>
 				
 				$Content
-			<% end_control %>
+			<% end_loop %>
 	
-	<% if Children %>
+	<% if $Children %>
 		</div>
 	<% end_if %>
 

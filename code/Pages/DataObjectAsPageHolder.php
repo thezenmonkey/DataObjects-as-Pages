@@ -2,87 +2,68 @@
 
 class DataObjectAsPageHolder extends Page 
 {
-	static $hide_ancestor = 'DataObjectAsPageHolder';
+	private static $hide_ancestor = 'DataObjectAsPageHolder';
 	
-	static $db = array(
+	private static $db = array(
 		'ItemsPerPage' => 'Int',
 		'ItemsAsChildren' => 'Boolean',
 		'Paginate' => 'Boolean'
 	);
 	
-	static $defaults = array(
+	private static $defaults = array(
 		'ItemsPerPage' => 10,
 		'Paginate' => true,
 		'ItemsAsChildren' => false
 	);
 	
-	public function getCMSFields()
+	public function getSettingsFields()
 	{
-		$fields = parent::getCMSFields();
+		$fields = parent::getSettingsFields();
 		
-		$fields->addFieldToTab('Root.Behaviour', new HeaderField('DOAP', 'DataObject Item Display'));
-		$fields->addFieldToTab('Root.Behaviour', new CheckboxField('Paginate', 'Paginate Items'));
-		$fields->addFieldToTab('Root.Behaviour', new NumericField('ItemsPerPage', 'Items per page (if paginated)'));
-		$fields->addFieldToTab('Root.Behaviour', new CheckboxField('ItemsAsChildren', 'Show DataObjects as Children of this page'));
+		$fields->addFieldToTab('Root.Settings', new HeaderField('DOAP', 'DataObject Item Display'));
+		$fields->addFieldToTab('Root.Settings', new CheckboxField('Paginate', 'Paginate Items'));
+		$fields->addFieldToTab('Root.Settings', new NumericField('ItemsPerPage', 'Items per page (if paginated)'));
+		$fields->addFieldToTab('Root.Settings', new CheckboxField('ItemsAsChildren', 'Show DataObjects as Children of this page'));
 		
 		return $fields;
 	}
 	
 	/*
-	 * Produce the correct breadcrumb trail for use on the DataObject Item Page
-	 */ 
-	public function ItemBreadcrumbs($Item, $Other = Null) 
-	{
-		$Breadcrumbs = parent::Breadcrumbs($maxDepth = 20, $unlinked = false, $stopAtPageType = false, $showHidden = false);
-
-		$Parts = explode(self::$breadcrumbs_delimiter, $Breadcrumbs);
-
-		$NumOfParts = count($Parts);
-		
-		$Parts[$NumOfParts-1] = ("<a href=\"" . $this->Link() . "\">" . Convert::raw2xml($this->Title) . "</a>");
-		
-		if($Other)
-		{
-			$Parts[$NumOfParts] = "<a href=\"" . $Item->Link() . "\">" . Convert::raw2xml($Item->Title) . "</a>"; 
-			$Parts[] = Convert::raw2xml($Other);
-		}
-		else
-		{
-			$Parts[$NumOfParts] = Convert::raw2xml($Item->Title); 
-		}
-		
-		return implode(self::$breadcrumbs_delimiter, $Parts);
-	}	
-	
-	/*
-	 * Generate custom metatags to display on the DataObject Item page
-	 */ 
-	 public function ItemMetaTags($item = null) 
-	{
-	    $tags = parent::MetaTags(false);
-		
-		//explode to find each meta tag
-		$tagArray = explode('<meta', $tags);
-		for($i=0; $i<count($tagArray); $i++)
-		{
-			//check if tag is a description: replace if it is
-			if(strpos($tagArray[$i], 'name="description"'))
-			{
-				$tagArray[$i] = " name=\"description\" content=\"" . Convert::raw2att($item->MetaDescription) . "\" />\n";
-			}
-		}
-		//rebuild string
-	    $tags = implode('<meta', $tagArray);
-		
-		return $tags;
-	}
-		
-	/*
 	* Get Items which are to be displayed on this listing page
 	*/
-	public function FetchItems($ItemClass, $Filter = '', $Sort = Null, $Join = Null, $Limit = null)
+	public function FetchItems($itemClass, $filter = null, $sort = Null, $limit = Null)
 	{
-		return DataObject::get($ItemClass, $Filter, $Sort, $Join, $Limit);
+		$results = $itemClass::get();
+		
+		if($filter)
+		{
+			if(is_array($filter))
+			{
+				foreach($filter as $key => $value)
+				{
+					if($key == "filterany" || $key == "filter" || $key == "where")
+					{
+						$results = $results->$key($value);
+					}
+				}
+			}
+			else
+			{
+				$results = $results->filter($filter);	
+			}
+		}
+		
+		if($sort)
+		{
+			$results = $results->sort($sort);
+		}
+
+		if($limit)
+		{
+			$results = $results->limit($limit);
+		}
+						
+		return $results;
 	}
 	
 	/*
@@ -124,42 +105,35 @@ class DataObjectAsPageHolder extends Page
 class DataObjectAsPageHolder_Controller extends Page_Controller 
 {
 	//Class Of Object Listied on this page
-	static $item_class = 'DataObjectAsPage';
-	static $item_sort = 'Created DESC';
+	private static $item_class = 'DataObjectAsPage';
+	private static $item_sort = 'Created DESC';
 	
-	public static $allowed_actions = array(
+	private static $allowed_actions = array(
 		'show'
 	);
 	
 	/*
 	 * Returns the items to list on this page pagintated or Limited
 	 */
-	function Items($Limit = null)
+	public function Items($limit = null)
 	{
-		//Set Pagination if no limit set
-		if(!$Limit && $this->Paginate)
-		{
-			//Pagination 
-			if(!isset($_GET['start']) || !is_numeric($_GET['start']) || (int)$_GET['start'] < 1){
-				$_GET['start'] = 0;
-			}
-			
-			$Offset = (int)$_GET['start'];	
-			
-			$Limit = "{$Offset}, {$this->ItemsPerPage}" ;			
-		}
-
 		//Set custom filter
-		$Where = ($this->hasMethod('getItemsWhere')) ? $this->getItemsWhere() : Null;
+		$where = ($this->hasMethod('getItemsWhere')) ? $this->getItemsWhere() : Null;
 		
 		//Set custom sort		
-		$Sort = ($this->hasMethod('getItemsSort')) ? $this->getItemsSort() : $this->stat('item_sort');
-		
-		//Set custom join	
-		$Join = ($this->hasMethod('getItemsJoin')) ? $this->getItemsJoin() : Null;
+		$sort = ($this->hasMethod('getItemsSort')) ? $this->getItemsSort() : $this->stat('item_sort');
 		
 		//QUERY
-		$items = $this->FetchItems($this->Stat('item_class'), $Where, $Sort, $Join, $Limit);
+		$items = $this->FetchItems($this->Stat('item_class'), $where, $sort, $limit);
+
+		//Paginate the list
+		if(!$limit && $this->Paginate)
+		{
+			$items = new PaginatedList($items, $this->request);
+			$items->setPageLength($this->ItemsPerPage);
+		}
+
+		$this->extend('updateItems', $items);
 
 		return $items;
 	}
@@ -170,18 +144,22 @@ class DataObjectAsPageHolder_Controller extends Page_Controller
 	public function getCurrentItem($itemID = null)
 	{
 		$params = $this->request->allParams();
+		$class =  $this->stat('item_class');		
 		
 		if($itemID)
 		{
-			return DataObject::get_by_id($this->stat('item_class'), $itemID);
+			$item = $class::get()->byID($itemID);
+
 		}
 		elseif(isset($params['ID']))
 		{
 			//Sanitize
 			$URL = Convert::raw2sql($params['ID']);
 			
-			return DataObject::get_one($this->stat('item_class'), "URLSegment = '" . $URL . "'");
+			$item = $class::get()->filter("URLSegment", $URL)->first();
 		}		
+		$this->extend('updateCurrentItem', $item);
+		return $item;
 	}
 	
 	/*
@@ -189,17 +167,16 @@ class DataObjectAsPageHolder_Controller extends Page_Controller
 	 * 
 	 * Uses DataObjectAsPageViewer_show.ss by default
 	 */
-	function show()
+	public function show()
 	{
-		if(($item = $this->getCurrentItem()))
+		if($item = $this->getCurrentItem())
 		{
-			if ($this->getCurrentItem()->canView())
+			if ($item->canView())
 			{
 				$data = array(
 					'Item' => $item,
-					'Breadcrumbs' => $this->ItemBreadcrumbs($item),
-					'MetaTitle' => $item->MetaTitle,
-					'MetaTags' => $this->ItemMetaTags($item),
+					'Breadcrumbs' => $item->Breadcrumbs(),
+					'MetaTags' => $item->MetaTags(),
 					'BackLink' => base64_decode($this->request->getVar('backlink'))
 				);
 
